@@ -73,6 +73,8 @@ public class SistemaMonitoramento {
                 System.out.println("2 - Consultar histórico de medições");
                 System.out.println("3 - Executar previsão");
                 System.out.println("4 - Consultar histórico de alertas");
+                System.out.println("5 - Gerenciar dados do território");
+                System.out.println("6 - Ver status completo");
                 System.out.println("0 - Encerrar");
                 System.out.print("Escolha uma opção: ");
 
@@ -87,6 +89,8 @@ public class SistemaMonitoramento {
                     case "2" -> consultarHistorico(scanner, medicaoDAO);
                     case "3" -> executarPrevisao(scanner, fabrica, servico);
                     case "4" -> consultarAlertas(alertaDAO);
+                    case "5" -> gerenciarTerritorio(scanner, territorio);
+                    case "6" -> exibirStatusCompleto(estacao, territorio);
                     case "0" -> executando = false;
                     default -> System.out.println("Opção inválida. Tente novamente.");
                 }
@@ -225,6 +229,85 @@ public class SistemaMonitoramento {
                 unidade,
                 alerta.estrategia()
         );
+    }
+
+    private static void gerenciarTerritorio(Scanner scanner, DadosTerritorio territorio) {
+        System.out.printf("%nGerenciamento do território | %s%n", territorio.getRegiao());
+        TipoSensor tipo = escolherSensor(scanner);
+
+        if (tipo == null) {
+            return;
+        }
+
+        exibirLimiares(tipo, territorio.getLimiares(tipo));
+        System.out.print("Código de acesso (Enter para voltar): ");
+
+        if (!scanner.hasNextLine()) {
+            return;
+        }
+
+        String codigo = scanner.nextLine().trim();
+
+        if (codigo.isEmpty()) {
+            return;
+        }
+
+        try {
+            double atencao = lerDecimal(scanner, "Novo limiar de atenção");
+            double alerta = lerDecimal(scanner, "Novo limiar de alerta");
+            double critico = lerDecimal(scanner, "Novo limiar crítico");
+
+            territorio.alterarLimiares(codigo, tipo, atencao, alerta, critico);
+            System.out.println("Limiares atualizados.");
+            exibirLimiares(tipo, territorio.getLimiares(tipo));
+        } catch (DadosInvalidosException erro) {
+            System.out.println("Alteração recusada: " + erro.getMessage());
+        }
+    }
+
+    private static void exibirStatusCompleto(EstacaoMonitoramento estacao,
+                                             DadosTerritorio territorio) {
+        estacao.verificarStatus();
+
+        System.out.printf("%n%s (%s) | %s%n",
+                estacao.getNome(), estacao.getId(), estacao.getStatus());
+        System.out.printf("Região: %s | População: %d habitantes%n",
+                territorio.getRegiao(), territorio.getPopulacao());
+
+        for (Sensor sensor : estacao.getSensores()) {
+            TipoSensor tipo = sensor.retornarTipo();
+            String status = sensor.verificarFuncionamento()
+                    ? "Disponível" : "Indisponível";
+
+            System.out.printf("%n%s: %s%n", tipo.getDescricao(), status);
+            exibirLimiares(tipo, territorio.getLimiares(tipo));
+        }
+    }
+
+    private static void exibirLimiares(TipoSensor tipo, DadosTerritorio.Limiares limiares) {
+        String unidade = tipo.getUnidade();
+
+        System.out.printf("Limiares de %s | Atenção: %.2f %s | Alerta: %.2f %s | Crítico: %.2f %s%n",
+                tipo.getDescricao(),
+                limiares.atencao(), unidade,
+                limiares.alerta(), unidade,
+                limiares.critico(), unidade);
+    }
+
+    private static double lerDecimal(Scanner scanner, String campo) {
+        System.out.print(campo + ": ");
+
+        if (!scanner.hasNextLine()) {
+            throw new DadosInvalidosException("Entrada encerrada.");
+        }
+
+        String texto = scanner.nextLine().trim().replace(',', '.');
+
+        try {
+            return Double.parseDouble(texto);
+        } catch (NumberFormatException erro) {
+            throw new DadosInvalidosException("Informe um número válido em " + campo + ".");
+        }
     }
 
     private static TipoSensor escolherSensor(Scanner scanner) {
